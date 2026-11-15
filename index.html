@@ -421,13 +421,13 @@ function endGame() {
 
   const title = document.getElementById('result-title');
   title.className = '';
-  if (score === questions.length && isTop3) {
+  // ファンファーレはトップ3に入ったときだけ鳴らす
+  if (isTop3) {
     title.textContent = 'すごい！トップ3！';
     title.classList.add('top');
     playFanfare();
   } else if (score === questions.length) {
     title.textContent = 'ぜんもんせいかい！';
-    playFanfare();
   } else {
     title.textContent = 'おつかれさま！';
   }
