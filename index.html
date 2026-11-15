@@ -1,383 +1,499 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-    <meta charset="UTF-8">
-    <!-- iPadの画面でズームされないように設定し、アプリのような挙動にします -->
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>九九 チャレンジ</title>
-    <!-- Tailwind CSS を読み込み、スタイリングに使用します -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Tone.js を読み込み、音の再生に使用します -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
-    <style>
-        /* 視認性を高めるためのフォント設定と、タッチ操作の最適化 */
-        body {
-            font-family: 'Helvetica Neue', Arial, 'Hiragino Kaku Gothic ProN', 'Hiragino Sans', Meiryo, sans-serif;
-            background-color: #000000; /* 完全な黒背景で高コントラスト化 */
-            color: #ffffff;
-            touch-action: manipulation; /* ダブルタップズームの防止 */
-            user-select: none; /* テキスト選択の防止 */
-            -webkit-user-select: none;
-            overflow: hidden; /* スクロール防止 */
-        }
-        
-        /* 押したときの沈み込みエフェクト */
-        .btn-press:active {
-            transform: translateY(8px);
-            box-shadow: none !important;
-        }
+<meta charset="UTF-8">
+<!-- iPadでズームされず、アプリのように全画面で動かすための設定 -->
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<title>九九 チャレンジ</title>
+<style>
+  :root {
+    --bg: #000;
+    --text: #fff;
+    --yellow: #ffff00;
+    --cyan: #22d3ee;
+    --key: #2a2f38;
+    --key-edge: #4b5563;
+    --gap: clamp(8px, 1.6vmin, 18px);
+    --lcd-bg: #b8c8a0;
+    --lcd-text: #1a2410;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body {
+    font-family: 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Helvetica Neue', Meiryo, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    touch-action: manipulation;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-tap-highlight-color: transparent;
+    overflow: hidden;
+    height: 100dvh;
+    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  }
+  button { font-family: inherit; color: inherit; border: none; cursor: pointer; }
+  .screen { display: none; width: 100%; height: 100%; }
+  .screen.active { display: flex; }
 
-        /* 視認性の高い黄色 */
-        .text-high-contrast {
-            color: #FFFF00; 
-        }
+  /* 押したときの沈み込み */
+  .press { transition: transform .05s; }
+  .press:active, .press.pressed { transform: translateY(6px); box-shadow: none !important; }
 
-        /* エラー時の画面フラッシュエフェクト */
-        @keyframes flashRed {
-            0% { background-color: #000; }
-            50% { background-color: #4a0000; }
-            100% { background-color: #000; }
-        }
-        .flash-error {
-            animation: flashRed 0.3s ease-out;
-        }
-    </style>
+  /* ================= メニュー ================= */
+  #menu-screen {
+    flex-direction: column; align-items: center; justify-content: center;
+    gap: 3vmin; padding: 3vmin;
+  }
+  #menu-screen h1 { font-size: 8vmin; color: var(--yellow); letter-spacing: .1em; text-align: center; }
+  #menu-screen p { font-size: 4vmin; color: #ccc; }
+  #table-buttons {
+    display: grid; grid-template-columns: repeat(3, 1fr);
+    gap: var(--gap); width: min(92vw, 70vmin);
+  }
+  .table-btn {
+    aspect-ratio: 1 / 1;
+    background: #166534; border: 4px solid #22c55e; border-radius: 22%;
+    font-size: 6vmin; font-weight: bold;
+    box-shadow: 0 6px 0 0 #14532d;
+  }
+
+  /* ================= ゲーム ================= */
+  #game-screen { flex-direction: column; padding: 2vmin 3vmin; gap: 2vmin; }
+  .game-header {
+    display: flex; justify-content: space-between; align-items: center;
+    font-size: 5vmin; font-weight: bold; color: #ccc; height: 7vmin; flex-shrink: 0;
+  }
+  #timer-text { color: var(--cyan); font-family: 'Menlo', 'Consolas', monospace; }
+  #quit-btn {
+    font-size: 3vmin; background: #333; border-radius: 1.5vmin; padding: 1vmin 2.5vmin; color: #ccc;
+  }
+  .game-body { flex: 1; min-height: 0; display: flex; gap: 3vmin; }
+
+  /* 電卓ディスプレイ */
+  .lcd {
+    background: var(--lcd-bg);
+    border: 1.2vmin solid #3a3f47;
+    border-radius: 3vmin;
+    box-shadow: inset 0 0.8vmin 1.5vmin rgba(0,0,0,.35);
+    color: var(--lcd-text);
+    display: flex; align-items: center; justify-content: flex-end;
+    padding: 0 4vmin; position: relative; overflow: hidden;
+    font-family: 'Menlo', 'Consolas', 'Courier New', monospace;
+    font-weight: bold; white-space: nowrap;
+  }
+  .lcd .q { opacity: .9; }
+  .lcd .eq { margin: 0 .25em; opacity: .7; }
+  .lcd .ans { display: inline-block; min-width: 2ch; text-align: right; }
+  .lcd .cursor { display: inline-block; width: .08em; height: .9em; background: var(--lcd-text);
+    vertical-align: -0.1em; margin-left: .05em; animation: blink 1s steps(1) infinite; }
+  @keyframes blink { 50% { opacity: 0; } }
+  .lcd .mark {
+    position: absolute; left: 4vmin; top: 50%; transform: translateY(-50%);
+    font-size: .9em; font-family: inherit; display: none;
+  }
+  .lcd.correct .mark { display: block; color: #c00; }
+  .lcd.wrong { background: #e8b4b4; }
+  .lcd.wrong .mark { display: block; color: #00f; }
+  .lcd .hint { position: absolute; right: 4vmin; bottom: 1.2vmin; font-size: .3em; opacity: .8; }
+
+  /* テンキー（正方形ボタン） */
+  .keypad {
+    display: grid;
+    grid-template-columns: repeat(3, var(--k));
+    grid-auto-rows: var(--k);
+    gap: var(--gap);
+    justify-content: center; align-content: center;
+  }
+  .key {
+    width: var(--k); height: var(--k);
+    border-radius: 20%;
+    background: var(--key); border: 4px solid var(--key-edge);
+    font-size: calc(var(--k) * 0.45); font-weight: bold;
+    box-shadow: 0 6px 0 0 var(--key-edge);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .key.clear { background: #7f1d1d; border-color: #dc2626; box-shadow: 0 6px 0 0 #450a0a; font-size: calc(var(--k) * 0.38); }
+  .key.enter { background: #1e40af; border-color: #60a5fa; box-shadow: 0 6px 0 0 #172554; font-size: calc(var(--k) * 0.55); }
+
+  /* 縦向き：ディスプレイ上、テンキー下 */
+  @media (orientation: portrait) {
+    .game-body { flex-direction: column; }
+    .lcd { height: 20dvh; font-size: 12vmin; flex-shrink: 0; }
+    .keypad {
+      flex: 1;
+      --k: min(calc((100dvh - 20dvh - 7vmin - 14vmin - 3 * var(--gap) - 20px) / 4),
+               calc((100vw - 6vmin - 2 * var(--gap)) / 3));
+    }
+  }
+  /* 横向き：ディスプレイ左、テンキー右 */
+  @media (orientation: landscape) {
+    .game-body { flex-direction: row; align-items: stretch; }
+    .lcd { flex: 1; font-size: 11vmin; }
+    .keypad {
+      flex-shrink: 0;
+      --k: min(calc((100dvh - 7vmin - 10vmin - 3 * var(--gap) - 20px) / 4),
+               calc((50vw - 2 * var(--gap)) / 3));
+    }
+  }
+
+  /* ================= 結果 ================= */
+  #result-screen { flex-direction: column; align-items: center; padding: 3vmin; gap: 2vmin; }
+  #result-title { font-size: 8vmin; color: var(--yellow); flex-shrink: 0; }
+  #result-title.top { text-shadow: 0 0 20px rgba(255,255,0,.8); }
+  .result-summary { display: flex; gap: 6vmin; font-size: 5vmin; font-weight: bold; flex-shrink: 0; flex-wrap: wrap; justify-content: center; }
+  .result-summary .v { color: var(--cyan); font-family: 'Menlo', 'Consolas', monospace; }
+  .result-main { flex: 1; min-height: 0; width: 100%; max-width: 1100px; display: flex; gap: 3vmin; }
+  @media (orientation: portrait) { .result-main { flex-direction: column; } }
+  .panel { background: #111827; border: 3px solid #374151; border-radius: 2.5vmin; padding: 2vmin 3vmin; }
+  .panel h3 { font-size: 3.4vmin; color: #ccc; text-align: center; border-bottom: 2px solid #374151; padding-bottom: 1vmin; margin-bottom: 1vmin; }
+  .answers-panel { flex: 2; min-height: 0; display: flex; flex-direction: column; }
+  .answers-scroll { overflow-y: auto; -webkit-overflow-scrolling: touch; }
+  table.answers { width: 100%; border-collapse: collapse; font-size: 3.6vmin; font-family: 'Menlo', 'Consolas', monospace; }
+  table.answers th { font-family: inherit; font-size: 2.6vmin; color: #9ca3af; font-weight: normal; padding: .6vmin; position: sticky; top: 0; background: #111827; }
+  table.answers td { text-align: center; padding: .7vmin; border-top: 1px solid #1f2937; }
+  table.answers td.ok { color: #f87171; font-weight: bold; }
+  table.answers td.ng { color: #60a5fa; font-weight: bold; }
+  table.answers tr.wrong-row td.mine { color: #60a5fa; text-decoration: line-through; }
+  table.answers td.sec { color: #9ca3af; font-size: .8em; }
+  .ranking-panel { flex: 1; }
+  #ranking-list { list-style: none; font-size: 3.6vmin; font-family: 'Menlo', 'Consolas', monospace; text-align: center; }
+  #ranking-list li { padding: .8vmin 0; color: #d1d5db; }
+  #ranking-list li.me { color: #fde047; font-weight: bold; }
+  #ranking-list li.none { color: #4b5563; }
+  .result-buttons { display: flex; gap: 3vmin; flex-shrink: 0; }
+  .big-btn { font-size: 4.5vmin; font-weight: bold; padding: 1.8vmin 5vmin; border-radius: 2.5vmin; }
+  .big-btn.blue { background: #1e40af; border: 4px solid #60a5fa; box-shadow: 0 6px 0 0 #172554; }
+  .big-btn.green { background: #166534; border: 4px solid #22c55e; box-shadow: 0 6px 0 0 #14532d; }
+</style>
 </head>
-<body class="w-screen h-screen flex flex-col">
+<body>
 
-    <!-- ================= メニュー画面 ================= -->
-    <div id="menu-screen" class="flex flex-col items-center justify-center w-full h-full p-2 space-y-6 md:space-y-8">
-        <h1 class="text-4xl md:text-7xl font-bold text-high-contrast tracking-widest text-center mt-4">
-            九九にちょうせん！
-        </h1>
-        <p class="text-2xl md:text-3xl text-gray-300">やりたい段をえらんでね</p>
-        
-        <!-- 段を選択するボタンのグリッド -->
-        <div class="grid grid-cols-3 gap-3 md:gap-6 w-full max-w-3xl px-2">
-            <!-- JavaScriptで1〜9のボタンを生成します -->
-            <div id="table-buttons" class="contents"></div>
-        </div>
+<!-- ================= メニュー画面 ================= -->
+<div id="menu-screen" class="screen active">
+  <h1>九九にちょうせん！</h1>
+  <p>やりたい段をえらんでね</p>
+  <div id="table-buttons"></div>
+</div>
+
+<!-- ================= ゲーム画面 ================= -->
+<div id="game-screen" class="screen">
+  <div class="game-header">
+    <button id="quit-btn" class="press">やめる</button>
+    <div id="progress-text">1 / 9</div>
+    <div id="timer-text">0.00</div>
+  </div>
+  <div class="game-body">
+    <!-- 電卓ディスプレイ：問題と答えを横並び -->
+    <div id="lcd" class="lcd">
+      <span class="mark" id="lcd-mark">○</span>
+      <span class="q" id="question-text">5×6</span><span class="eq">=</span><span class="ans" id="input-text"></span><span class="cursor" id="cursor"></span>
+      <span class="hint" id="lcd-hint"></span>
     </div>
-
-    <!-- ================= ゲーム画面 ================= -->
-    <div id="game-screen" class="hidden flex-col items-center justify-between w-full h-full p-2 md:p-4 max-w-4xl mx-auto">
-        
-        <!-- ヘッダー部（進行度とタイマー） -->
-        <div class="w-full flex justify-between items-center px-4 text-3xl md:text-5xl font-bold text-gray-300 shrink-0 h-[10%]">
-            <div id="progress-text">1 / 9</div>
-            <div id="timer-text" class="text-cyan-400 font-mono tracking-wider">0.00</div>
-        </div>
-
-        <!-- 問題表示部（極大サイズ、残り高さを埋める） -->
-        <div class="flex-grow flex flex-col items-center justify-center w-full min-h-0">
-            <div id="question-text" class="text-[15vh] md:text-[20vh] font-bold text-high-contrast tracking-widest drop-shadow-2xl leading-none whitespace-nowrap">
-                3 × 4
-            </div>
-            
-            <!-- 入力された数字の表示枠 -->
-            <div class="mt-4 md:mt-8 h-20 md:h-28 flex items-center justify-center border-b-4 md:border-b-8 border-gray-600 min-w-[150px] md:min-w-[250px]">
-                <span id="input-text" class="text-6xl md:text-8xl font-bold text-white tracking-widest"></span>
-            </div>
-        </div>
-
-        <!-- 電卓風テンキー (画面下部、高さを固定割合に) -->
-        <div class="w-full shrink-0 h-[45vh] grid grid-cols-3 gap-2 md:gap-4 pb-2">
-            <!-- 数字ボタン (7,8,9, 4,5,6, 1,2,3, C,0,消) -->
-            <button class="numpad-btn btn-press bg-gray-800 border-4 border-gray-600 rounded-2xl md:rounded-3xl h-full text-5xl md:text-7xl font-bold shadow-[0_6px_0_0_#4b5563] md:shadow-[0_10px_0_0_#4b5563]" data-num="7">7</button>
-            <button class="numpad-btn btn-press bg-gray-800 border-4 border-gray-600 rounded-2xl md:rounded-3xl h-full text-5xl md:text-7xl font-bold shadow-[0_6px_0_0_#4b5563] md:shadow-[0_10px_0_0_#4b5563]" data-num="8">8</button>
-            <button class="numpad-btn btn-press bg-gray-800 border-4 border-gray-600 rounded-2xl md:rounded-3xl h-full text-5xl md:text-7xl font-bold shadow-[0_6px_0_0_#4b5563] md:shadow-[0_10px_0_0_#4b5563]" data-num="9">9</button>
-            
-            <button class="numpad-btn btn-press bg-gray-800 border-4 border-gray-600 rounded-2xl md:rounded-3xl h-full text-5xl md:text-7xl font-bold shadow-[0_6px_0_0_#4b5563] md:shadow-[0_10px_0_0_#4b5563]" data-num="4">4</button>
-            <button class="numpad-btn btn-press bg-gray-800 border-4 border-gray-600 rounded-2xl md:rounded-3xl h-full text-5xl md:text-7xl font-bold shadow-[0_6px_0_0_#4b5563] md:shadow-[0_10px_0_0_#4b5563]" data-num="5">5</button>
-            <button class="numpad-btn btn-press bg-gray-800 border-4 border-gray-600 rounded-2xl md:rounded-3xl h-full text-5xl md:text-7xl font-bold shadow-[0_6px_0_0_#4b5563] md:shadow-[0_10px_0_0_#4b5563]" data-num="6">6</button>
-            
-            <button class="numpad-btn btn-press bg-gray-800 border-4 border-gray-600 rounded-2xl md:rounded-3xl h-full text-5xl md:text-7xl font-bold shadow-[0_6px_0_0_#4b5563] md:shadow-[0_10px_0_0_#4b5563]" data-num="1">1</button>
-            <button class="numpad-btn btn-press bg-gray-800 border-4 border-gray-600 rounded-2xl md:rounded-3xl h-full text-5xl md:text-7xl font-bold shadow-[0_6px_0_0_#4b5563] md:shadow-[0_10px_0_0_#4b5563]" data-num="2">2</button>
-            <button class="numpad-btn btn-press bg-gray-800 border-4 border-gray-600 rounded-2xl md:rounded-3xl h-full text-5xl md:text-7xl font-bold shadow-[0_6px_0_0_#4b5563] md:shadow-[0_10px_0_0_#4b5563]" data-num="3">3</button>
-            
-            <button id="btn-clear" class="btn-press bg-red-900 border-4 border-red-700 rounded-2xl md:rounded-3xl h-full text-4xl md:text-6xl font-bold text-red-200 shadow-[0_6px_0_0_#7f1d1d] md:shadow-[0_10px_0_0_#7f1d1d]">クリア</button>
-            <button class="numpad-btn btn-press bg-gray-800 border-4 border-gray-600 rounded-2xl md:rounded-3xl h-full text-5xl md:text-7xl font-bold shadow-[0_6px_0_0_#4b5563] md:shadow-[0_10px_0_0_#4b5563]" data-num="0">0</button>
-            <button id="btn-back" class="btn-press bg-orange-900 border-4 border-orange-700 rounded-2xl md:rounded-3xl h-full text-4xl md:text-6xl font-bold text-orange-200 shadow-[0_6px_0_0_#7c2d12] md:shadow-[0_10px_0_0_#7c2d12]">もどる</button>
-        </div>
+    <!-- テンキー -->
+    <div class="keypad">
+      <button class="key press" data-num="7">7</button>
+      <button class="key press" data-num="8">8</button>
+      <button class="key press" data-num="9">9</button>
+      <button class="key press" data-num="4">4</button>
+      <button class="key press" data-num="5">5</button>
+      <button class="key press" data-num="6">6</button>
+      <button class="key press" data-num="1">1</button>
+      <button class="key press" data-num="2">2</button>
+      <button class="key press" data-num="3">3</button>
+      <button class="key clear press" id="btn-clear">C</button>
+      <button class="key press" data-num="0">0</button>
+      <button class="key enter press" id="btn-enter">＝</button>
     </div>
+  </div>
+</div>
 
-    <!-- ================= 結果画面 ================= -->
-    <div id="result-screen" class="hidden flex-col items-center justify-center w-full h-full p-4 space-y-6 md:space-y-8">
-        <h2 id="result-title" class="text-6xl md:text-8xl font-bold text-high-contrast">クリア！</h2>
-        
-        <div class="text-4xl md:text-6xl font-bold">
-            タイム: <span id="final-time" class="text-cyan-400 font-mono">12.34</span> 秒
-        </div>
-
-        <div class="bg-gray-900 border-4 border-gray-700 rounded-3xl p-4 md:p-8 w-full max-w-2xl mt-4">
-            <h3 class="text-3xl md:text-4xl font-bold text-center mb-4 text-gray-300 border-b-2 border-gray-700 pb-2">トップ3のきろく</h3>
-            <ul id="ranking-list" class="space-y-2 md:space-y-4 text-3xl md:text-5xl font-mono text-center">
-                <!-- JavaScriptでランキングを表示します -->
-            </ul>
-        </div>
-
-        <button id="btn-return-menu" class="btn-press mt-6 bg-blue-800 border-4 border-blue-600 rounded-2xl md:rounded-3xl px-8 py-4 md:px-12 md:py-6 text-4xl md:text-6xl font-bold shadow-[0_8px_0_0_#1e3a8a]">
-            メニューへ
-        </button>
+<!-- ================= 結果画面 ================= -->
+<div id="result-screen" class="screen">
+  <h2 id="result-title">クリア！</h2>
+  <div class="result-summary">
+    <div>タイム <span class="v" id="final-time">0.00</span> 秒</div>
+    <div>せいかい <span class="v" id="final-score">0</span> / 9</div>
+  </div>
+  <div class="result-main">
+    <div class="panel answers-panel">
+      <h3>こたえあわせ</h3>
+      <div class="answers-scroll">
+        <table class="answers">
+          <thead><tr><th>もんだい</th><th>きみのこたえ</th><th>せいかい</th><th></th><th>びょう</th></tr></thead>
+          <tbody id="answers-body"></tbody>
+        </table>
+      </div>
     </div>
+    <div class="panel ranking-panel">
+      <h3 id="ranking-title">トップ3のきろく</h3>
+      <ul id="ranking-list"></ul>
+    </div>
+  </div>
+  <div class="result-buttons">
+    <button id="btn-retry" class="big-btn green press">もういちど</button>
+    <button id="btn-return-menu" class="big-btn blue press">メニューへ</button>
+  </div>
+</div>
 
-    <!-- アプリケーションのロジック -->
-    <script>
-        // --- 状態管理 ---
-        let currentTable = 1;
-        let questions = [];
-        let currentQuestionIndex = 0;
-        let currentInput = "";
-        
-        let startTime = 0;
-        let timerAnimationFrame = null;
-        
-        // 過去のタイム記録 (段ごとに保存)
-        const records = {
-            1: [], 2: [], 3: [], 4: [], 5: [], 6: [], 7: [], 8: [], 9: []
-        };
+<script>
+// ================= 状態 =================
+let currentTable = 1;
+let questions = [];
+let qIndex = 0;
+let currentInput = "";
+let startTime = 0;
+let lastAnswerTime = 0;
+let timerRAF = null;
+let locked = false;          // 判定表示中は入力を受け付けない
+let results = [];            // {a, b, answer, mine, ok, sec}
 
-        // --- Tone.js (音響) の設定 ---
-        let audioInitialized = false;
-        let correctSynth, wrongSynth, fanfareSynth;
+// 記録（端末に保存。保存できない環境でも動くように try/catch）
+const STORAGE_KEY = 'kuku-records-v2';
+let records = {};
+try { records = JSON.parse(localStorage.getItem(STORAGE_KEY)) || {}; } catch (e) { records = {}; }
+function saveRecords() { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(records)); } catch (e) {} }
 
-        async function initAudio() {
-            if (audioInitialized) return;
-            await Tone.start();
-            
-            // 正解音（ピンポン）- 高音のチャイム風
-            correctSynth = new Tone.PolySynth(Tone.Synth, {
-                oscillator: { type: "sine" },
-                envelope: { attack: 0.01, decay: 0.3, sustain: 0, release: 0.1 }
-            }).toDestination();
-            correctSynth.volume.value = 5;
+// ================= 音（Web Audio API） =================
+let ctx = null;
+function initAudio() {
+  if (!ctx) {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (AC) ctx = new AC();
+  }
+  if (ctx && ctx.state === 'suspended') ctx.resume();
+}
+function tone(freq, start, dur, type = 'sine', vol = 0.3) {
+  if (!ctx) return;
+  const t = ctx.currentTime + start;
+  const osc = ctx.createOscillator();
+  const g = ctx.createGain();
+  osc.type = type;
+  osc.frequency.setValueAtTime(freq, t);
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.exponentialRampToValueAtTime(vol, t + 0.01);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  osc.connect(g).connect(ctx.destination);
+  osc.start(t);
+  osc.stop(t + dur + 0.05);
+}
+function playKey()     { tone(880, 0, 0.05, 'square', 0.05); }
+function playCorrect() { tone(988, 0, 0.18, 'sine', 0.35); tone(1319, 0.13, 0.35, 'sine', 0.35); } // ピンポーン
+function playWrong()   { tone(150, 0, 0.45, 'sawtooth', 0.22); tone(155, 0, 0.45, 'square', 0.12); } // ブッブー
+function playFanfare() {
+  [[523,0],[659,0],[784,0],[523,.18],[659,.18],[784,.18],[523,.36],[659,.36],[784,.36],[659,.54],[784,.54],[1047,.54]]
+    .forEach(([f, s]) => tone(f, s, s > .5 ? 0.9 : 0.16, 'triangle', 0.18));
+}
 
-            // 不正解音（ブー）- 低いノコギリ波
-            wrongSynth = new Tone.Synth({
-                oscillator: { type: "sawtooth" },
-                envelope: { attack: 0.05, decay: 0.2, sustain: 0.2, release: 0.1 }
-            }).toDestination();
-            wrongSynth.volume.value = -5;
+// ================= 画面切り替え =================
+const screens = {
+  menu: document.getElementById('menu-screen'),
+  game: document.getElementById('game-screen'),
+  result: document.getElementById('result-screen'),
+};
+function showScreen(name) {
+  Object.values(screens).forEach(s => s.classList.remove('active'));
+  screens[name].classList.add('active');
+}
 
-            // おめでとう音（ファンファーレ）
-            fanfareSynth = new Tone.PolySynth(Tone.Synth, {
-                oscillator: { type: "triangle" },
-                envelope: { attack: 0.05, decay: 0.2, sustain: 0.4, release: 0.8 }
-            }).toDestination();
-            fanfareSynth.volume.value = 2;
+// ================= メニュー =================
+const tableButtons = document.getElementById('table-buttons');
+for (let i = 1; i <= 9; i++) {
+  const btn = document.createElement('button');
+  btn.className = 'table-btn press';
+  btn.textContent = `${i}の段`;
+  btn.addEventListener('click', () => { initAudio(); startGame(i); });
+  tableButtons.appendChild(btn);
+}
 
-            audioInitialized = true;
-        }
+// ================= ゲーム =================
+const lcd = document.getElementById('lcd');
+const lcdMark = document.getElementById('lcd-mark');
+const lcdHint = document.getElementById('lcd-hint');
+const questionText = document.getElementById('question-text');
+const inputText = document.getElementById('input-text');
+const cursor = document.getElementById('cursor');
 
-        function playCorrectSound() {
-            if (!audioInitialized) return;
-            const now = Tone.now();
-            correctSynth.triggerAttackRelease("B4", "16n", now);
-            correctSynth.triggerAttackRelease("E5", "8n", now + 0.15);
-        }
+function startGame(table) {
+  currentTable = table;
+  qIndex = 0;
+  currentInput = "";
+  results = [];
+  locked = false;
+  questions = [];
+  for (let i = 1; i <= 9; i++) questions.push({ a: table, b: i, answer: table * i });
+  // シャッフル（フィッシャー–イェーツ）
+  for (let i = questions.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [questions[i], questions[j]] = [questions[j], questions[i]];
+  }
+  showScreen('game');
+  showQuestion();
+  startTime = performance.now();
+  lastAnswerTime = startTime;
+  cancelAnimationFrame(timerRAF);
+  updateTimer();
+}
 
-        function playWrongSound() {
-            if (!audioInitialized) return;
-            wrongSynth.triggerAttackRelease("G2", "8n");
-        }
+function showQuestion() {
+  const q = questions[qIndex];
+  questionText.textContent = `${q.a}×${q.b}`;
+  document.getElementById('progress-text').textContent = `${qIndex + 1} / ${questions.length}`;
+  lcd.classList.remove('correct', 'wrong');
+  lcdHint.textContent = "";
+  cursor.style.display = '';
+  updateInput();
+}
+function updateInput() { inputText.textContent = currentInput; }
 
-        function playFanfare() {
-            if (!audioInitialized) return;
-            const now = Tone.now();
-            // ド・ミ・ソ・ド のアルペジオ和音
-            fanfareSynth.triggerAttackRelease(["C4", "E4", "G4"], "8n", now);
-            fanfareSynth.triggerAttackRelease(["C4", "E4", "G4"], "8n", now + 0.2);
-            fanfareSynth.triggerAttackRelease(["C4", "E4", "G4"], "8n", now + 0.4);
-            fanfareSynth.triggerAttackRelease(["E4", "G4", "C5"], "2n", now + 0.6);
-        }
+function pressNumber(n) {
+  if (locked) return;
+  if (currentInput.length >= 2) return;            // 九九の答えは最大2けた
+  if (currentInput === "" && n === "0") return;    // 先頭の0は入れない
+  playKey();
+  currentInput += n;
+  updateInput();
+}
+function pressClear() {
+  if (locked) return;
+  playKey();
+  currentInput = "";
+  updateInput();
+}
+function pressEnter() {
+  if (locked || currentInput === "") return;
+  locked = true;
+  const q = questions[qIndex];
+  const now = performance.now();
+  const mine = parseInt(currentInput, 10);
+  const ok = mine === q.answer;
+  results.push({ a: q.a, b: q.b, answer: q.answer, mine, ok, sec: (now - lastAnswerTime) / 1000 });
+  lastAnswerTime = now;
+  cursor.style.display = 'none';
 
-        // --- 画面切り替え ---
-        const menuScreen = document.getElementById('menu-screen');
-        const gameScreen = document.getElementById('game-screen');
-        const resultScreen = document.getElementById('result-screen');
+  if (ok) {
+    playCorrect();
+    lcd.classList.add('correct');
+    lcdMark.textContent = '○';
+  } else {
+    playWrong();
+    lcd.classList.add('wrong');
+    lcdMark.textContent = '×';
+    lcdHint.textContent = `こたえ ${q.answer}`;
+  }
 
-        function showScreen(screen) {
-            menuScreen.classList.add('hidden');
-            menuScreen.classList.remove('flex');
-            gameScreen.classList.add('hidden');
-            gameScreen.classList.remove('flex');
-            resultScreen.classList.add('hidden');
-            resultScreen.classList.remove('flex');
-            
-            screen.classList.remove('hidden');
-            screen.classList.add('flex');
-        }
+  setTimeout(() => {
+    qIndex++;
+    currentInput = "";
+    locked = false;
+    if (qIndex >= questions.length) endGame();
+    else showQuestion();
+  }, ok ? 450 : 1100);
+}
 
-        // --- メニューの生成 ---
-        const tableButtonsContainer = document.getElementById('table-buttons');
-        for (let i = 1; i <= 9; i++) {
-            const btn = document.createElement('button');
-            btn.className = "btn-press bg-green-800 border-4 border-green-600 rounded-2xl md:rounded-3xl py-4 md:py-8 text-4xl md:text-6xl font-bold shadow-[0_6px_0_0_#166534] md:shadow-[0_10px_0_0_#166534]";
-            btn.textContent = `${i}の段`;
-            btn.onclick = async () => {
-                await initAudio(); // ユーザーのアクションでオーディオを許可
-                startGame(i);
-            };
-            tableButtonsContainer.appendChild(btn);
-        }
+function updateTimer() {
+  if (!screens.game.classList.contains('active')) return;
+  document.getElementById('timer-text').textContent = ((performance.now() - startTime) / 1000).toFixed(2);
+  timerRAF = requestAnimationFrame(updateTimer);
+}
 
-        // --- ゲームロジック ---
-        function startGame(tableNumber) {
-            currentTable = tableNumber;
-            currentInput = "";
-            currentQuestionIndex = 0;
-            
-            // 9問の問題を生成してシャッフル
-            questions = [];
-            for (let i = 1; i <= 9; i++) {
-                questions.push({ a: tableNumber, b: i, answer: tableNumber * i });
-            }
-            questions.sort(() => Math.random() - 0.5); // ランダムにシャッフル
+// ================= 結果 =================
+function endGame() {
+  cancelAnimationFrame(timerRAF);
+  const time = Math.round((lastAnswerTime - startTime) / 10) / 100;
+  const score = results.filter(r => r.ok).length;
 
-            showScreen(gameScreen);
-            updateQuestionDisplay();
-            updateInputDisplay();
-            
-            // タイマー開始
-            startTime = performance.now();
-            updateTimer();
-        }
+  // ランキング：せいかい数が多い順 → タイムが速い順
+  const list = records[currentTable] || [];
+  const entry = { time, score, id: Date.now() };
+  list.push(entry);
+  list.sort((x, y) => (y.score - x.score) || (x.time - y.time));
+  records[currentTable] = list.slice(0, 10);
+  saveRecords();
+  const rank = records[currentTable].findIndex(r => r.id === entry.id);
+  const isTop3 = rank >= 0 && rank < 3;
 
-        function updateQuestionDisplay() {
-            const q = questions[currentQuestionIndex];
-            document.getElementById('question-text').textContent = `${q.a} × ${q.b}`;
-            document.getElementById('progress-text').textContent = `${currentQuestionIndex + 1} / 9`;
-        }
+  document.getElementById('final-time').textContent = time.toFixed(2);
+  document.getElementById('final-score').textContent = score;
+  document.getElementById('ranking-title').textContent = `${currentTable}の段 トップ3`;
 
-        function updateInputDisplay() {
-            document.getElementById('input-text').textContent = currentInput;
-        }
+  const title = document.getElementById('result-title');
+  title.className = '';
+  if (score === questions.length && isTop3) {
+    title.textContent = 'すごい！トップ3！';
+    title.classList.add('top');
+    playFanfare();
+  } else if (score === questions.length) {
+    title.textContent = 'ぜんもんせいかい！';
+    playFanfare();
+  } else {
+    title.textContent = 'おつかれさま！';
+  }
 
-        // テンキーの入力処理
-        function handleNumpadInput(numStr) {
-            currentInput += numStr;
-            updateInputDisplay();
-            checkAnswer();
-        }
+  // こたえあわせ表（出題順）
+  const tbody = document.getElementById('answers-body');
+  tbody.innerHTML = '';
+  results.forEach(r => {
+    const tr = document.createElement('tr');
+    if (!r.ok) tr.className = 'wrong-row';
+    tr.innerHTML =
+      `<td>${r.a} × ${r.b}</td>` +
+      `<td class="mine">${r.mine}</td>` +
+      `<td>${r.answer}</td>` +
+      `<td class="${r.ok ? 'ok' : 'ng'}">${r.ok ? '○' : '×'}</td>` +
+      `<td class="sec">${r.sec.toFixed(2)}</td>`;
+    tbody.appendChild(tr);
+  });
 
-        function checkAnswer() {
-            const correctAnswer = questions[currentQuestionIndex].answer.toString();
+  // トップ3
+  const ul = document.getElementById('ranking-list');
+  ul.innerHTML = '';
+  for (let i = 0; i < 3; i++) {
+    const li = document.createElement('li');
+    const r = records[currentTable][i];
+    if (r) {
+      li.textContent = `${i + 1}位  ${r.time.toFixed(2)}秒  ${r.score}/9`;
+      if (r.id === entry.id) li.className = 'me';
+    } else {
+      li.textContent = `${i + 1}位  -`;
+      li.className = 'none';
+    }
+    ul.appendChild(li);
+  }
 
-            if (currentInput === correctAnswer) {
-                // 完全正解
-                playCorrectSound();
-                currentInput = ""; // 入力をリセット
-                currentQuestionIndex++;
-                
-                if (currentQuestionIndex >= questions.length) {
-                    endGame();
-                } else {
-                    updateQuestionDisplay();
-                    updateInputDisplay();
-                }
-            } else if (!correctAnswer.startsWith(currentInput)) {
-                // 間違い（例：答えが12なのに、3を押した。または1を押した後に3を押した）
-                playWrongSound();
-                // 画面を赤く光らせるエフェクト
-                document.body.classList.add('flash-error');
-                setTimeout(() => document.body.classList.remove('flash-error'), 300);
-                
-                currentInput = ""; // 間違えたら自動でクリアし、入力をやり直しやすくする
-                updateInputDisplay();
-            }
-            // 部分一致（例：答えが12で、1だけ押した状態）の場合は何もしない（次の入力を待つ）
-        }
+  showScreen('result');
+}
 
-        // --- タイマー処理 ---
-        function updateTimer() {
-            if (gameScreen.classList.contains('hidden')) return; // ゲーム画面外なら停止
-            const currentTime = performance.now();
-            const elapsed = (currentTime - startTime) / 1000;
-            document.getElementById('timer-text').textContent = elapsed.toFixed(2);
-            timerAnimationFrame = requestAnimationFrame(updateTimer);
-        }
+// ================= イベント =================
+// pointerdown で反応させると、タッチの遅延がなく素早く入力できる
+function bindKey(el, fn) {
+  el.addEventListener('pointerdown', e => {
+    e.preventDefault();
+    el.classList.add('pressed');
+    setTimeout(() => el.classList.remove('pressed'), 100);
+    initAudio();
+    fn();
+  });
+}
+document.querySelectorAll('.key[data-num]').forEach(btn => bindKey(btn, () => pressNumber(btn.dataset.num)));
+bindKey(document.getElementById('btn-clear'), pressClear);
+bindKey(document.getElementById('btn-enter'), pressEnter);
 
-        // --- ゲーム終了処理 ---
-        function endGame() {
-            cancelAnimationFrame(timerAnimationFrame);
-            const endTime = performance.now();
-            const finalTime = ((endTime - startTime) / 1000).toFixed(2);
-            const timeNumber = parseFloat(finalTime);
-            
-            // 記録を保存し、昇順（速い順）にソート
-            records[currentTable].push(timeNumber);
-            records[currentTable].sort((a, b) => a - b);
-            
-            // トップ3に入ったか判定
-            const rankIndex = records[currentTable].indexOf(timeNumber);
-            const isTop3 = rankIndex >= 0 && rankIndex < 3;
+document.getElementById('quit-btn').addEventListener('click', () => {
+  cancelAnimationFrame(timerRAF);
+  showScreen('menu');
+});
+document.getElementById('btn-retry').addEventListener('click', () => { initAudio(); startGame(currentTable); });
+document.getElementById('btn-return-menu').addEventListener('click', () => showScreen('menu'));
 
-            // 結果画面の描画
-            document.getElementById('final-time').textContent = finalTime;
-            
-            const titleEl = document.getElementById('result-title');
-            if (isTop3) {
-                titleEl.textContent = "すごい！トップ3！";
-                titleEl.className = "text-6xl md:text-8xl font-bold text-yellow-400 drop-shadow-[0_0_20px_rgba(255,255,0,0.8)]";
-                playFanfare(); // トップ3ならファンファーレ
-            } else {
-                titleEl.textContent = "クリア！";
-                titleEl.className = "text-7xl md:text-9xl font-bold text-high-contrast";
-            }
-
-            // ランキングリストの生成
-            const rankingList = document.getElementById('ranking-list');
-            rankingList.innerHTML = ""; // クリア
-            for (let i = 0; i < 3; i++) {
-                const li = document.createElement('li');
-                if (records[currentTable][i] !== undefined) {
-                    const recTime = records[currentTable][i].toFixed(2);
-                    li.textContent = `${i + 1}位 : ${recTime} 秒`;
-                    // 今回の記録をハイライト
-                    if (recTime === finalTime) {
-                        li.classList.add('text-yellow-300', 'font-extrabold', 'scale-110');
-                    } else {
-                        li.classList.add('text-gray-300');
-                    }
-                } else {
-                    li.textContent = `${i + 1}位 : -`;
-                    li.classList.add('text-gray-600');
-                }
-                rankingList.appendChild(li);
-            }
-
-            showScreen(resultScreen);
-        }
-
-        // --- イベントリスナー設定 ---
-        
-        // 数字ボタンの設定
-        document.querySelectorAll('.numpad-btn').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                handleNumpadInput(e.target.dataset.num);
-            });
-        });
-
-        // クリアボタン（C）
-        document.getElementById('btn-clear').addEventListener('click', () => {
-            currentInput = "";
-            updateInputDisplay();
-        });
-
-        // もどるボタン（1文字消去）※今回は自動消去もありますが、手動修正用として
-        document.getElementById('btn-back').addEventListener('click', () => {
-            currentInput = currentInput.slice(0, -1);
-            updateInputDisplay();
-        });
-
-        // 結果画面からもどるボタン
-        document.getElementById('btn-return-menu').addEventListener('click', () => {
-            showScreen(menuScreen);
-        });
-
-        // 初期状態はメニューを表示
-        showScreen(menuScreen);
-
-    </script>
+// パソコンのキーボードでも操作できるように
+document.addEventListener('keydown', e => {
+  if (!screens.game.classList.contains('active')) return;
+  if (/^[0-9]$/.test(e.key)) pressNumber(e.key);
+  else if (e.key === 'Enter' || e.key === '=') pressEnter();
+  else if (e.key === 'Backspace' || e.key === 'Escape' || e.key.toLowerCase() === 'c') pressClear();
+});
+</script>
 </body>
 </html>
