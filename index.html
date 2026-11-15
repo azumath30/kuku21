@@ -176,6 +176,7 @@
   #ranking-list li { padding: .8vmin 0; color: #d1d5db; }
   #ranking-list li.me { color: #fde047; font-weight: bold; }
   #ranking-list li.none { color: #4b5563; }
+  .rank-note { font-size: 2.6vmin; color: #9ca3af; text-align: center; margin-bottom: 1vmin; }
   .result-buttons { display: flex; gap: 3vmin; flex-shrink: 0; }
   .big-btn { font-size: 4.5vmin; font-weight: bold; padding: 1.8vmin 5vmin; border-radius: 2.5vmin; }
   .big-btn.blue { background: #1e40af; border: 4px solid #60a5fa; box-shadow: 0 6px 0 0 #172554; }
@@ -241,6 +242,7 @@
     </div>
     <div class="panel ranking-panel">
       <h3 id="ranking-title">トップ3のきろく</h3>
+      <p class="rank-note">※まんてんのときだけランクイン</p>
       <ul id="ranking-list"></ul>
     </div>
   </div>
@@ -405,14 +407,15 @@ function endGame() {
   const time = Math.round((lastAnswerTime - startTime) / 10) / 100;
   const score = results.filter(r => r.ok).length;
 
-  // ランキング：せいかい数が多い順 → タイムが速い順
-  const list = records[currentTable] || [];
+  // ランキング：満点（9/9）のときだけタイムをランクインの対象にする（速い順）
+  const perfect = score === questions.length;
+  const list = (records[currentTable] || []).filter(r => r.score === questions.length); // 以前の満点以外の記録は除く
   const entry = { time, score, id: Date.now() };
-  list.push(entry);
-  list.sort((x, y) => (y.score - x.score) || (x.time - y.time));
+  if (perfect) list.push(entry);
+  list.sort((x, y) => x.time - y.time);
   records[currentTable] = list.slice(0, 10);
   saveRecords();
-  const rank = records[currentTable].findIndex(r => r.id === entry.id);
+  const rank = perfect ? records[currentTable].findIndex(r => r.id === entry.id) : -1;
   const isTop3 = rank >= 0 && rank < 3;
 
   document.getElementById('final-time').textContent = time.toFixed(2);
@@ -426,10 +429,10 @@ function endGame() {
     title.textContent = 'すごい！トップ3！';
     title.classList.add('top');
     playFanfare();
-  } else if (score === questions.length) {
+  } else if (perfect) {
     title.textContent = 'ぜんもんせいかい！';
   } else {
-    title.textContent = 'おつかれさま！';
+    title.textContent = 'おしい！まんてんでランクイン';
   }
 
   // こたえあわせ表（出題順）
@@ -454,7 +457,7 @@ function endGame() {
     const li = document.createElement('li');
     const r = records[currentTable][i];
     if (r) {
-      li.textContent = `${i + 1}位  ${r.time.toFixed(2)}秒  ${r.score}/9`;
+      li.textContent = `${i + 1}位  ${r.time.toFixed(2)}秒`;
       if (r.id === entry.id) li.className = 'me';
     } else {
       li.textContent = `${i + 1}位  -`;
