@@ -20,7 +20,10 @@
     --lcd-text: #1a2410;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  html, body { height: 100%; }
+  /* 画面を固定してスクロール・引っぱり（バウンス）を止める */
+  html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
+  html { position: fixed; inset: 0; }
+  #game-screen, #menu-screen { touch-action: none; }
   body {
     font-family: 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Helvetica Neue', Meiryo, sans-serif;
     background: var(--bg);
@@ -46,16 +49,19 @@
     flex-direction: column; align-items: center; justify-content: center;
     gap: 3vmin; padding: 3vmin;
   }
-  #menu-screen h1 { font-size: 8vmin; color: var(--yellow); letter-spacing: .1em; text-align: center; }
-  #menu-screen p { font-size: 4vmin; color: #ccc; }
+  #menu-screen h1 { font-size: 7vmin; line-height: 1.2; color: var(--yellow); letter-spacing: .1em; text-align: center; }
+  #menu-screen p { font-size: 3.5vmin; line-height: 1.2; color: #ccc; }
+  /* ボタン1つの大きさ：横幅と「高さの残り」の小さいほうに合わせて、上下にはみ出さない */
   #table-buttons {
-    display: grid; grid-template-columns: repeat(3, 1fr);
-    gap: var(--gap); width: min(92vw, 70vmin);
+    --m: min(calc((92vw - 2 * var(--gap)) / 3),
+             calc((100dvh - 7vmin * 1.2 - 3.5vmin * 1.2 - 2 * 3vmin - 2 * 3vmin - 2 * var(--gap) - 16px) / 3));
+    display: grid; grid-template-columns: repeat(3, var(--m)); grid-auto-rows: var(--m);
+    gap: var(--gap);
   }
   .table-btn {
-    aspect-ratio: 1 / 1;
+    width: var(--m); height: var(--m);
     background: #166534; border: 4px solid #22c55e; border-radius: 22%;
-    font-size: 6vmin; font-weight: bold;
+    font-size: calc(var(--m) * 0.22); font-weight: bold;
     box-shadow: 0 6px 0 0 #14532d;
   }
 
@@ -481,6 +487,14 @@ document.getElementById('quit-btn').addEventListener('click', () => {
 });
 document.getElementById('btn-retry').addEventListener('click', () => { initAudio(); startGame(currentTable); });
 document.getElementById('btn-return-menu').addEventListener('click', () => showScreen('menu'));
+
+// スクロールロック：こたえあわせ表の中以外では、指でのスクロール・ピンチ拡大をさせない
+document.addEventListener('touchmove', e => {
+  if (!e.target.closest('.answers-scroll')) e.preventDefault();
+}, { passive: false });
+document.addEventListener('gesturestart', e => e.preventDefault());
+document.addEventListener('dblclick', e => e.preventDefault());
+window.addEventListener('scroll', () => window.scrollTo(0, 0));
 
 // パソコンのキーボードでも操作できるように
 document.addEventListener('keydown', e => {
