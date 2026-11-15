@@ -15,7 +15,7 @@
     --cyan: #22d3ee;
     --key: #2a2f38;
     --key-edge: #4b5563;
-    --gap: clamp(8px, 1.6vmin, 18px);
+    --gap: clamp(14px, 3.5vmin, 40px);
     --lcd-bg: #b8c8a0;
     --lcd-text: #1a2410;
   }
@@ -78,8 +78,9 @@
     border-radius: 3vmin;
     box-shadow: inset 0 0.8vmin 1.5vmin rgba(0,0,0,.35);
     color: var(--lcd-text);
-    display: flex; align-items: center; justify-content: flex-end;
-    padding: 0 4vmin; position: relative; overflow: hidden;
+    display: flex; align-items: center; justify-content: flex-start; /* 文字は左寄せ */
+    padding: 0 3vmin; position: relative; overflow: hidden;
+    font-size: 50pt !important; /* 出題の文字は 50pt */
     font-family: 'Menlo', 'Consolas', 'Courier New', monospace;
     font-weight: bold; white-space: nowrap;
   }
@@ -89,14 +90,16 @@
   .lcd .cursor { display: inline-block; width: .08em; height: .9em; background: var(--lcd-text);
     vertical-align: -0.1em; margin-left: .05em; animation: blink 1s steps(1) infinite; }
   @keyframes blink { 50% { opacity: 0; } }
+  /* ○×は止めずに一瞬だけ表示（次の問題はすぐ出る） */
   .lcd .mark {
-    position: absolute; left: 4vmin; top: 50%; transform: translateY(-50%);
-    font-size: .9em; font-family: inherit; display: none;
+    position: absolute; right: 3vmin; top: 50%; transform: translateY(-50%);
+    font-size: .9em; font-family: inherit; opacity: 0;
   }
-  .lcd.correct .mark { display: block; color: #c00; }
-  .lcd.wrong { background: #e8b4b4; }
-  .lcd.wrong .mark { display: block; color: #00f; }
-  .lcd .hint { position: absolute; right: 4vmin; bottom: 1.2vmin; font-size: .3em; opacity: .8; }
+  .lcd .mark.show-ok { color: #c00; animation: markFade .5s ease-out; }
+  .lcd .mark.show-ng { color: #00f; animation: markFade .5s ease-out; }
+  @keyframes markFade { 0% { opacity: 1; } 60% { opacity: 1; } 100% { opacity: 0; } }
+  .lcd.flash-ng { animation: lcdNg .35s ease-out; }
+  @keyframes lcdNg { 0% { background: #f0a0a0; } 100% { background: var(--lcd-bg); } }
 
   /* テンキー（正方形ボタン） */
   .keypad {
@@ -110,31 +113,36 @@
     width: var(--k); height: var(--k);
     border-radius: 20%;
     background: var(--key); border: 4px solid var(--key-edge);
-    font-size: calc(var(--k) * 0.45); font-weight: bold;
+    font-size: calc(var(--k) * 0.6); font-weight: bold;
     box-shadow: 0 6px 0 0 var(--key-edge);
     display: flex; align-items: center; justify-content: center;
   }
-  .key.clear { background: #7f1d1d; border-color: #dc2626; box-shadow: 0 6px 0 0 #450a0a; font-size: calc(var(--k) * 0.38); }
-  .key.enter { background: #1e40af; border-color: #60a5fa; box-shadow: 0 6px 0 0 #172554; font-size: calc(var(--k) * 0.55); }
+  .key.clear { background: #7f1d1d; border-color: #dc2626; box-shadow: 0 6px 0 0 #450a0a; font-size: calc(var(--k) * 0.5); }
+  .key.enter { background: #1e40af; border-color: #60a5fa; box-shadow: 0 6px 0 0 #172554; font-size: calc(var(--k) * 0.6); }
 
-  /* 縦向き：ディスプレイ上、テンキー下 */
+  /* 縦向き：小さめのディスプレイを上、テンキーを下 */
   @media (orientation: portrait) {
-    .game-body { flex-direction: column; }
-    .lcd { height: 20dvh; font-size: 12vmin; flex-shrink: 0; }
+    .game-body { flex-direction: column; align-items: center; }
+    .lcd { height: 12dvh; width: min(100%, 80vmin); font-size: 7vmin; flex-shrink: 0; }
     .keypad {
       flex: 1;
-      --k: min(calc((100dvh - 20dvh - 7vmin - 14vmin - 3 * var(--gap) - 20px) / 4),
-               calc((100vw - 6vmin - 2 * var(--gap)) / 3));
+      --k: min(calc((100dvh - 12dvh - 7vmin - 4vmin - 2vmin - 3vmin - 3 * var(--gap) - 12px) / 4),
+               calc((90vw - 2 * var(--gap)) / 3));
     }
   }
-  /* 横向き：ディスプレイ左、テンキー右 */
+  /* 横向き：小さめのディスプレイを左、テンキー（画面の約半分）を右 */
   @media (orientation: landscape) {
-    .game-body { flex-direction: row; align-items: stretch; }
-    .lcd { flex: 1; font-size: 11vmin; }
+    /* ディスプレイとキーの間は 50px、全体は中央に（外側左右は同じだけ余白） */
+    .game-body { flex-direction: row; align-items: center; justify-content: center; gap: 50px; }
+    /* ディスプレイの左・キーの右にマージン */
+    .lcd { flex: 1; max-width: 45vw; height: 22dvh; font-size: 7.5vmin; margin-left: 40px; min-width: 360px; }
     .keypad {
       flex-shrink: 0;
-      --k: min(calc((100dvh - 7vmin - 10vmin - 3 * var(--gap) - 20px) / 4),
-               calc((50vw - 2 * var(--gap)) / 3));
+      margin-right: 40px; /* 外側右のマージン */
+      --k: min(calc((100dvh - 7vmin - 4vmin - 2vmin - 3 * var(--gap) - 12px) / 4),
+               /* 画面幅 − 余白(左右40px＋間50px) − ディスプレイ最小幅360px */
+               calc((100vw - 6vmin - 130px - 360px - 2 * var(--gap)) / 3),
+               calc((55vw - 80px - 2 * var(--gap)) / 3));
     }
   }
 
@@ -147,18 +155,18 @@
   .result-main { flex: 1; min-height: 0; width: 100%; max-width: 1100px; display: flex; gap: 3vmin; }
   @media (orientation: portrait) { .result-main { flex-direction: column; } }
   .panel { background: #111827; border: 3px solid #374151; border-radius: 2.5vmin; padding: 2vmin 3vmin; }
-  .panel h3 { font-size: 3.4vmin; color: #ccc; text-align: center; border-bottom: 2px solid #374151; padding-bottom: 1vmin; margin-bottom: 1vmin; }
+  .panel h3 { font-size: 4vmin; color: #ccc; text-align: center; border-bottom: 2px solid #374151; padding-bottom: 1vmin; margin-bottom: 1vmin; }
   .answers-panel { flex: 2; min-height: 0; display: flex; flex-direction: column; }
   .answers-scroll { overflow-y: auto; -webkit-overflow-scrolling: touch; }
-  table.answers { width: 100%; border-collapse: collapse; font-size: 3.6vmin; font-family: 'Menlo', 'Consolas', monospace; }
-  table.answers th { font-family: inherit; font-size: 2.6vmin; color: #9ca3af; font-weight: normal; padding: .6vmin; position: sticky; top: 0; background: #111827; }
+  table.answers { width: 100%; border-collapse: collapse; font-size: 5.5vmin; font-family: 'Menlo', 'Consolas', monospace; }
+  table.answers th { font-family: inherit; font-size: 3.2vmin; color: #9ca3af; font-weight: normal; padding: .6vmin; position: sticky; top: 0; background: #111827; }
   table.answers td { text-align: center; padding: .7vmin; border-top: 1px solid #1f2937; }
   table.answers td.ok { color: #f87171; font-weight: bold; }
   table.answers td.ng { color: #60a5fa; font-weight: bold; }
   table.answers tr.wrong-row td.mine { color: #60a5fa; text-decoration: line-through; }
   table.answers td.sec { color: #9ca3af; font-size: .8em; }
   .ranking-panel { flex: 1; }
-  #ranking-list { list-style: none; font-size: 3.6vmin; font-family: 'Menlo', 'Consolas', monospace; text-align: center; }
+  #ranking-list { list-style: none; font-size: 4.8vmin; font-family: 'Menlo', 'Consolas', monospace; text-align: center; }
   #ranking-list li { padding: .8vmin 0; color: #d1d5db; }
   #ranking-list li.me { color: #fde047; font-weight: bold; }
   #ranking-list li.none { color: #4b5563; }
@@ -189,7 +197,6 @@
     <div id="lcd" class="lcd">
       <span class="mark" id="lcd-mark">○</span>
       <span class="q" id="question-text">5×6</span><span class="eq">=</span><span class="ans" id="input-text"></span><span class="cursor" id="cursor"></span>
-      <span class="hint" id="lcd-hint"></span>
     </div>
     <!-- テンキー -->
     <div class="keypad">
@@ -246,7 +253,6 @@ let currentInput = "";
 let startTime = 0;
 let lastAnswerTime = 0;
 let timerRAF = null;
-let locked = false;          // 判定表示中は入力を受け付けない
 let results = [];            // {a, b, answer, mine, ok, sec}
 
 // 記録（端末に保存。保存できない環境でも動くように try/catch）
@@ -310,7 +316,6 @@ for (let i = 1; i <= 9; i++) {
 // ================= ゲーム =================
 const lcd = document.getElementById('lcd');
 const lcdMark = document.getElementById('lcd-mark');
-const lcdHint = document.getElementById('lcd-hint');
 const questionText = document.getElementById('question-text');
 const inputText = document.getElementById('input-text');
 const cursor = document.getElementById('cursor');
@@ -320,14 +325,11 @@ function startGame(table) {
   qIndex = 0;
   currentInput = "";
   results = [];
-  locked = false;
   questions = [];
+  // ×1, ×2, … ×9 の順番に出題
   for (let i = 1; i <= 9; i++) questions.push({ a: table, b: i, answer: table * i });
-  // シャッフル（フィッシャー–イェーツ）
-  for (let i = questions.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [questions[i], questions[j]] = [questions[j], questions[i]];
-  }
+  lcdMark.className = 'mark';
+  lcd.classList.remove('flash-ng');
   showScreen('game');
   showQuestion();
   startTime = performance.now();
@@ -340,15 +342,21 @@ function showQuestion() {
   const q = questions[qIndex];
   questionText.textContent = `${q.a}×${q.b}`;
   document.getElementById('progress-text').textContent = `${qIndex + 1} / ${questions.length}`;
-  lcd.classList.remove('correct', 'wrong');
-  lcdHint.textContent = "";
-  cursor.style.display = '';
   updateInput();
+}
+
+// ○×を一瞬表示（アニメーションを毎回最初から再生する）
+function flashMark(ok) {
+  lcdMark.textContent = ok ? '○' : '×';
+  lcdMark.className = 'mark';
+  lcd.classList.remove('flash-ng');
+  void lcdMark.offsetWidth; // 再描画させてアニメーションをリセット
+  lcdMark.classList.add(ok ? 'show-ok' : 'show-ng');
+  if (!ok) lcd.classList.add('flash-ng');
 }
 function updateInput() { inputText.textContent = currentInput; }
 
 function pressNumber(n) {
-  if (locked) return;
   if (currentInput.length >= 2) return;            // 九九の答えは最大2けた
   if (currentInput === "" && n === "0") return;    // 先頭の0は入れない
   playKey();
@@ -356,40 +364,27 @@ function pressNumber(n) {
   updateInput();
 }
 function pressClear() {
-  if (locked) return;
   playKey();
   currentInput = "";
   updateInput();
 }
 function pressEnter() {
-  if (locked || currentInput === "") return;
-  locked = true;
+  if (qIndex >= questions.length || currentInput === "") return;
   const q = questions[qIndex];
   const now = performance.now();
   const mine = parseInt(currentInput, 10);
   const ok = mine === q.answer;
   results.push({ a: q.a, b: q.b, answer: q.answer, mine, ok, sec: (now - lastAnswerTime) / 1000 });
   lastAnswerTime = now;
-  cursor.style.display = 'none';
 
-  if (ok) {
-    playCorrect();
-    lcd.classList.add('correct');
-    lcdMark.textContent = '○';
-  } else {
-    playWrong();
-    lcd.classList.add('wrong');
-    lcdMark.textContent = '×';
-    lcdHint.textContent = `こたえ ${q.answer}`;
-  }
+  // 音と○×を出しつつ、止まらずにすぐ次の問題へ
+  if (ok) playCorrect(); else playWrong();
+  flashMark(ok);
 
-  setTimeout(() => {
-    qIndex++;
-    currentInput = "";
-    locked = false;
-    if (qIndex >= questions.length) endGame();
-    else showQuestion();
-  }, ok ? 450 : 1100);
+  qIndex++;
+  currentInput = "";
+  if (qIndex >= questions.length) endGame();
+  else showQuestion();
 }
 
 function updateTimer() {
